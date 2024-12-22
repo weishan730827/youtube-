@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YouTube 视频下载器</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 500px;
+        }
+        .cookies-input {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>YouTube 视频下载器</h1>
+    <div class="status-container">
+        <p>代理状态: <span id="proxyStatus">检查中...</span></p>
+        <p>Cookies状态: <span id="cookiesStatus">检查中...</span> 
+           <button onclick="showCookiesModal()">更新Cookies</button>
+        </p>
+    </div>
+    <div class="container">
+        <input type="text" id="videoUrl" placeholder="输入YouTube视频URL">
+        <button onclick="getVideoInfo()">获取信息</button>
+        
+        <div id="videoInfo" style="display:none;">
+            <p>标题: <span id="videoTitle"></span></p>
+            <p>时长: <span id="videoDuration"></span></p>
+            <p>大小: <span id="videoSize"></span></p>
+            <button onclick="downloadVideo()">开始下载</button>
+        </div>
+    </div>
+
+    <!-- Cookies配置对话框 -->
+    <div id="cookiesModal" class="modal">
+        <div class="modal-content">
+            <h2>更新 Cookies</h2>
+            <p>请从 YouTube 复制 cookies:</p>
+            <textarea class="cookies-input" id="cookiesInput"></textarea>
+            <button onclick="updateCookies()">保存</button>
+            <button onclick="document.getElementById('cookiesModal').style.display='none'">取消</button>
+        </div>
+    </div>
+    
+    <script>
+        // 显示Cookies配置对话框
+        function showCookiesModal() {
+            document.getElementById('cookiesModal').style.display = 'block';
+        }
+
+        // 更新Cookies
+        async function updateCookies() {
+            const cookies = document.getElementById('cookiesInput').value;
+            if (!cookies) {
+                alert('请输入Cookies');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/update-cookies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `cookies=${encodeURIComponent(cookies)}`
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Cookies更新成功');
+                    document.getElementById('cookiesModal').style.display = 'none';
+                    checkStatus(); // 刷新状态
+                } else {
+                    alert('Cookies更新失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('更新失败: ' + error);
+            }
+        }
+
+        // 检查系统状态
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/check-status');
+                const data = await response.json();
+                
+                document.getElementById('proxyStatus').textContent = 
+                    data.proxy ? '正常' : '未连接';
+                document.getElementById('cookiesStatus').textContent = 
+                    data.cookies ? '已配置' : '未配置';
+            } catch (error) {
+                console.error('状态检查失败:', error);
+            }
+        }
+
+        // 获取视频信息
+        async function getVideoInfo() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) {
+                alert('请输入视频URL');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/video-info', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('videoTitle').textContent = data.title;
+                    document.getElementById('videoDuration').textContent = 
+                        Math.floor(data.duration / 60) + ':' + 
+                        (data.duration % 60).toString().padStart(2, '0');
+                    document.getElementById('videoSize').textContent = 
+                        Math.round(data.size / 1024 / 1024) + ' MB';
+                    document.getElementById('videoInfo').style.display = 'block';
+                } else {
+                    alert('获取视频信息失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('获取信息失败: ' + error);
+            }
+        }
+
+        // 下载视频
+        async function downloadVideo() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) {
+                alert('请输入视频URL');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    alert('下载成功: ' + data.filename);
+                } else {
+                    alert('下载失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('下载失败: ' + error);
+            }
+        }
+
+        // 页面加载时检查状态
+        checkStatus();
+    </script>
+</body>
+</html> 
